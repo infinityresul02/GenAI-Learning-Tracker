@@ -63,6 +63,16 @@ button.danger:hover {
   background: #ffe1de;
 }
 
+button.secondary {
+  border-color: var(--line);
+  background: #ffffff;
+  color: var(--ink);
+}
+
+button.secondary:hover {
+  background: #f1f5f7;
+}
+
 input,
 select,
 textarea {
@@ -164,7 +174,8 @@ main {
 }
 
 .overview,
-.notes-section {
+.notes-section,
+.sync-section {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.4fr);
   gap: 24px;
@@ -308,9 +319,55 @@ label {
   align-items: start;
 }
 
+.sync-section {
+  align-items: start;
+  margin-top: 20px;
+}
+
+.sync-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sync-actions {
+  display: flex;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin: 8px 0 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #edf1f5;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.sync-status.success {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.sync-status.warning {
+  background: #fff7e6;
+  color: var(--gold);
+}
+
+.sync-status.error {
+  background: #fff1f0;
+  color: var(--rose);
+}
+
 @media (max-width: 900px) {
   .topbar,
   .overview,
+  .sync-section,
   .notes-section,
   .phase-body {
     grid-template-columns: 1fr;
@@ -321,6 +378,7 @@ label {
   }
 
   .overview-grid,
+  .sync-grid,
   .phase-list {
     grid-template-columns: 1fr;
   }
@@ -350,9 +408,14 @@ label {
   }
 
   .overview,
+  .sync-section,
   .notes-section,
   .phase {
     padding: 16px;
+  }
+
+  .sync-actions {
+    flex-direction: column;
   }
 
   .phase-header {

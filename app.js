@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const phases = [
   {
     id: "phase-1",
@@ -159,16 +161,29 @@ const phases = [
 ];
 
 const storageKey = "ai-analytics-study-tracker-v1";
+const syncSettingsKey = "ai-analytics-study-tracker-sync-v1";
+const syncTable = "study_tracker_sync";
+const syncDebounceMs = 1200;
+const defaultSyncSettings = {
+  url: "https://hhstfhlbpjdaqysjjkzf.supabase.co",
+  key: "sb_publishable_rC_w0ytjPgXodoSuNgsowQ_1vl2LcF-",
+  syncId: "resul-ai-tracker"
+};
 const initialState = {
   checked: {},
   notes: "",
   phaseNotes: {},
   startDate: "",
   weeklyHours: "",
-  currentFocus: ""
+  currentFocus: "",
+  updatedAt: ""
 };
 
 let state = loadState();
+let syncTimer = null;
+let syncInFlight = false;
+let suppressSync = false;
+let supabaseClient = null;
 
 function loadState() {
   try {
@@ -179,8 +194,81 @@ function loadState() {
   }
 }
 
-function saveState() {
+function saveState(options = {}) {
+  const { touch = true, sync = true } = options;
+  if (touch) {
+    state.updatedAt = new Date().toISOString();
+  }
+
   localStorage.setItem(storageKey, JSON.stringify(state));
+
+  if (sync && !suppressSync) {
+    queueCloudSave();
+  }
+}
+
+function loadSyncSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(syncSettingsKey));
+    return {
+      url: saved.url || defaultSyncSettings.url,
+      key: saved.key || defaultSyncSettings.key,
+      syncId: saved.syncId || defaultSyncSettings.syncId
+    };
+  } catch {
+    return { ...defaultSyncSettings };
+  }
+}
+
+function saveSyncSettings(settings) {
+  localStorage.setItem(syncSettingsKey, JSON.stringify(settings));
+  supabaseClient = null;
+}
+
+function hasSyncSettings(settings = loadSyncSettings()) {
+  return Boolean(settings.url && settings.key && settings.syncId);
+}
+
+function normalizeSupabaseUrl(url) {
+  return url.trim().replace(/\/+$/, "");
+}
+
+function getSupabaseClient(settings = loadSyncSettings()) {
+  if (!supabaseClient) {
+    supabaseClient = createClient(settings.url, settings.key);
+  }
+
+  return supabaseClient;
+}
+
+function setSyncStatus(message, type = "") {
+  const status = document.querySelector("#syncStatus");
+  if (!status) {
+    return;
+  }
+
+  status.textContent = message;
+  status.className = `sync-status ${type}`.trim();
+}
+
+function isRemoteNewer(remoteState) {
+  if (!remoteState?.updatedAt) {
+    return false;
+  }
+
+  if (!state.updatedAt) {
+    return true;
+  }
+
+  return new Date(remoteState.updatedAt).getTime() > new Date(state.updatedAt).getTime();
+}
+
+function applyRemoteState(remoteState) {
+  suppressSync = true;
+  state = { ...initialState, ...remoteState };
+  saveState({ touch: false, sync: false });
+  applyStateToUI();
+  suppressSync = false;
 }
 
 function taskId(phaseId, category, index) {
@@ -226,6 +314,7 @@ function renderPhases() {
     article.dataset.phaseId = phase.id;
     title.textContent = phase.title;
     duration.textContent = phase.duration;
+    notes.dataset.phaseId = phase.id;
     notes.value = state.phaseNotes[phase.id] || "";
 
     phase.learn.forEach((task, index) => {
@@ -276,6 +365,23 @@ function updateProgress() {
   });
 }
 
+function applyStateToUI() {
+  document.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+    checkbox.checked = Boolean(state.checked[checkbox.id]);
+  });
+
+  document.querySelector("#notes").value = state.notes || "";
+  document.querySelector("#startDate").value = state.startDate || "";
+  document.querySelector("#weeklyHours").value = state.weeklyHours || "";
+  document.querySelector("#currentFocus").value = state.currentFocus || "";
+
+  document.querySelectorAll(".phase-notes").forEach((textarea) => {
+    textarea.value = state.phaseNotes[textarea.dataset.phaseId] || "";
+  });
+
+  updateProgress();
+}
+
 function bindFormState() {
   const notes = document.querySelector("#notes");
   const startDate = document.querySelector("#startDate");
@@ -306,6 +412,151 @@ function bindFormState() {
     state.currentFocus = currentFocus.value;
     saveState();
   });
+}
+
+async function fetchCloudState(settings) {
+  const client = getSupabaseClient(settings);
+  const { data, error } = await client
+    .from(syncTable)
+    .select("data,updated_at")
+    .eq("id", settings.syncId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.data || null;
+}
+
+async function saveCloudState(settings) {
+  if (!state.updatedAt) {
+    state.updatedAt = new Date().toISOString();
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  }
+
+  const client = getSupabaseClient(settings);
+  const { error } = await client
+    .from(syncTable)
+    .upsert(
+      {
+      id: settings.syncId,
+      data: state,
+      updated_at: state.updatedAt
+      },
+      { onConflict: "id" }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function syncWithCloud() {
+  const settings = loadSyncSettings();
+  if (!hasSyncSettings(settings) || syncInFlight) {
+    return;
+  }
+
+  syncInFlight = true;
+  setSyncStatus("Syncing...", "warning");
+
+  try {
+    const remoteState = await fetchCloudState(settings);
+
+    if (remoteState && isRemoteNewer(remoteState)) {
+      applyRemoteState(remoteState);
+      setSyncStatus("Loaded latest cloud changes", "success");
+      return;
+    }
+
+    await saveCloudState(settings);
+    setSyncStatus("Synced", "success");
+  } catch (error) {
+    setSyncStatus("Sync failed. Check Supabase settings.", "error");
+    console.error(error);
+  } finally {
+    syncInFlight = false;
+  }
+}
+
+async function saveToCloudNow() {
+  const settings = loadSyncSettings();
+  if (!hasSyncSettings(settings)) {
+    setSyncStatus("Add Supabase settings first", "warning");
+    return;
+  }
+
+  if (syncInFlight) {
+    queueCloudSave();
+    return;
+  }
+
+  syncInFlight = true;
+  setSyncStatus("Saving...", "warning");
+
+  try {
+    await saveCloudState(settings);
+    setSyncStatus("Saved to cloud", "success");
+  } catch (error) {
+    setSyncStatus("Cloud save failed", "error");
+    console.error(error);
+  } finally {
+    syncInFlight = false;
+  }
+}
+
+function queueCloudSave() {
+  const settings = loadSyncSettings();
+  if (!hasSyncSettings(settings)) {
+    setSyncStatus("Local only", "");
+    return;
+  }
+
+  window.clearTimeout(syncTimer);
+  setSyncStatus("Saving soon...", "warning");
+  syncTimer = window.setTimeout(saveToCloudNow, syncDebounceMs);
+}
+
+function bindSyncSettings() {
+  const settings = loadSyncSettings();
+  const supabaseUrl = document.querySelector("#supabaseUrl");
+  const supabaseKey = document.querySelector("#supabaseKey");
+  const syncId = document.querySelector("#syncId");
+
+  supabaseUrl.value = settings.url;
+  supabaseKey.value = settings.key;
+  syncId.value = settings.syncId;
+
+  if (hasSyncSettings(settings)) {
+    setSyncStatus("Sync configured", "success");
+  }
+
+  document.querySelector("#saveSyncBtn").addEventListener("click", async () => {
+    const nextSettings = {
+      url: normalizeSupabaseUrl(supabaseUrl.value),
+      key: supabaseKey.value.trim(),
+      syncId: syncId.value.trim()
+    };
+
+    saveSyncSettings(nextSettings);
+
+    if (!hasSyncSettings(nextSettings)) {
+      setSyncStatus("Fill all sync fields", "warning");
+      return;
+    }
+
+    setSyncStatus("Sync settings saved", "success");
+    await syncWithCloud();
+  });
+
+  document.querySelector("#syncNowBtn").addEventListener("click", syncWithCloud);
+
+  if (hasSyncSettings(settings)) {
+    syncWithCloud();
+    window.setInterval(syncWithCloud, 60000);
+    window.addEventListener("focus", syncWithCloud);
+  }
 }
 
 function exportProgress() {
@@ -348,14 +599,15 @@ function bindActions() {
     }
   });
 
-  document.querySelector("#resetBtn").addEventListener("click", () => {
+  document.querySelector("#resetBtn").addEventListener("click", async () => {
     const confirmed = window.confirm("Reset all saved progress for this tracker?");
     if (!confirmed) {
       return;
     }
 
     state = { ...initialState };
-    saveState();
+    saveState({ sync: false });
+    await saveToCloudNow();
     window.location.reload();
   });
 }
@@ -363,4 +615,5 @@ function bindActions() {
 renderPhases();
 bindFormState();
 bindActions();
+bindSyncSettings();
 updateProgress();

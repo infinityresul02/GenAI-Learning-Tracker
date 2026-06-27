@@ -55,6 +55,32 @@
       </div>
     </section>
 
+    <section class="sync-section" aria-label="Cloud sync">
+      <div>
+        <h2>Cloud Sync</h2>
+        <p class="muted">Connect Supabase once per device. After that, this tracker loads the latest cloud version on open and saves your edits automatically.</p>
+        <p id="syncStatus" class="sync-status" aria-live="polite">Local only</p>
+      </div>
+      <div class="sync-grid">
+        <label>
+          Supabase project URL
+          <input id="supabaseUrl" type="url" placeholder="https://your-project.supabase.co" autocomplete="off">
+        </label>
+        <label>
+          Publishable or anon key
+          <input id="supabaseKey" type="password" placeholder="Paste your public key" autocomplete="off">
+        </label>
+        <label>
+          Sync code
+          <input id="syncId" type="text" placeholder="resul-ai-tracker" autocomplete="off">
+        </label>
+        <div class="sync-actions">
+          <button id="saveSyncBtn" type="button">Save Sync</button>
+          <button id="syncNowBtn" type="button">Sync Now</button>
+        </div>
+      </div>
+    </section>
+
     <section id="phaseList" class="phase-list" aria-label="Study phases"></section>
 
     <section class="notes-section" aria-label="Study notes">
@@ -98,6 +124,6 @@
     </article>
   </template>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
