@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Analytics Study Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Analytics to GenAI Roadmap</p>
+      <h1>AI Analytics Study Tracker</h1>
+    </div>
+    <div class="top-actions">
+      <button id="exportBtn" type="button">Export</button>
+      <label class="import-label" for="importFile">Import</label>
+      <input id="importFile" type="file" accept="application/json">
+      <button id="resetBtn" class="danger" type="button">Reset</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="overview" aria-label="Progress overview">
+      <div class="overall">
+        <span class="stat-label">Overall Progress</span>
+        <strong id="overallPercent">0%</strong>
+        <div class="progress-track" aria-hidden="true">
+          <div id="overallBar" class="progress-fill"></div>
+        </div>
+        <span id="overallCount" class="muted">0 of 0 tasks complete</span>
+      </div>
+      <div class="overview-grid">
+        <label>
+          Start date
+          <input id="startDate" type="date">
+        </label>
+        <label>
+          Weekly study hours
+          <input id="weeklyHours" type="number" min="1" max="80" step="1" placeholder="10">
+        </label>
+        <label>
+          Current focus
+          <select id="currentFocus">
+            <option value="">Choose a phase</option>
+            <option>Phase 1: Analytics Foundation</option>
+            <option>Phase 2: Core Machine Learning</option>
+            <option>Phase 3: LLM Fundamentals</option>
+            <option>Phase 4: RAG Engineering</option>
+            <option>Phase 5: AI Agents</option>
+            <option>Phase 6: Databricks + GenAI</option>
+            <option>Phase 7: MLOps and Deployment</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section id="phaseList" class="phase-list" aria-label="Study phases"></section>
+
+    <section class="notes-section" aria-label="Study notes">
+      <div>
+        <h2>Notes</h2>
+        <p class="muted">Use this for blockers, links, interview ideas, or resume bullets.</p>
+      </div>
+      <textarea id="notes" rows="8" placeholder="Write your notes here..."></textarea>
+    </section>
+  </main>
+
+  <template id="phaseTemplate">
+    <article class="phase">
+      <div class="phase-header">
+        <div>
+          <p class="phase-duration"></p>
+          <h2></h2>
+        </div>
+        <div class="phase-score">
+          <strong></strong>
+          <span></span>
+        </div>
+      </div>
+      <div class="progress-track" aria-hidden="true">
+        <div class="progress-fill"></div>
+      </div>
+      <div class="phase-body">
+        <div class="task-group">
+          <h3>Learn</h3>
+          <ul class="task-list learn-list"></ul>
+        </div>
+        <div class="task-group">
+          <h3>Build</h3>
+          <ul class="task-list build-list"></ul>
+        </div>
+      </div>
+      <label class="phase-notes-label">
+        Phase notes
+        <textarea class="phase-notes" rows="3" placeholder="Add links, datasets, commands, or interview talking points..."></textarea>
+      </label>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
